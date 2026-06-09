@@ -2,1060 +2,776 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>픽시 라이더 3D: 스키딩 히어로 (Fixie Rider 3D)</title>
-    <!-- Tailwind CSS for sleek UI styling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D 픽시 라이더 - 광택 & 그림자 에디션</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800;900&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
-    <!-- Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #05070f;
-            touch-action: none;
-            overflow: hidden;
-        }
-        .font-orbitron {
-            font-family: 'Orbitron', sans-serif;
-        }
-        #gameCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        /* Mobile controls active state */
-        .btn-active:active {
-            transform: scale(0.9);
-            background-color: rgba(239, 68, 68, 0.4);
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; touch-action: none; font-family: 'Inter', sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        
+        /* 폰트 아웃라인 효과로 가독성 향상 */
+        .text-outline {
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen text-white p-0 m-0">
+<body>
 
-    <!-- Overall Container -->
-    <div class="relative w-full h-screen flex flex-col items-center justify-between overflow-hidden">
-        
-        <!-- HUD / Stats Overlay (Top) -->
-        <div class="absolute top-0 left-0 right-0 z-10 p-4 pointer-events-none flex flex-col gap-2 max-w-xl mx-auto w-full">
-            <!-- Header Status -->
-            <div class="flex justify-between items-center bg-gray-950/70 backdrop-blur-md border border-gray-800/80 rounded-xl p-3 shadow-2xl">
-                <div>
-                    <h1 class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-pink-500 to-yellow-400 font-orbitron tracking-wider">
-                        FIXIE RIDER 3D
-                    </h1>
-                    <p class="text-[10px] text-gray-400">마우스 드래그로 카메라 앵글 회전 가능!</p>
-                </div>
-                <div class="text-right">
-                    <span class="text-[10px] text-gray-400 font-orbitron">HIGH SCORE</span>
-                    <div id="highScoreVal" class="text-lg font-black text-yellow-400 font-orbitron leading-none">0</div>
-                </div>
-            </div>
-
-            <!-- Health & Fever Stats -->
-            <div class="flex justify-between items-center bg-gray-950/70 backdrop-blur-md border border-gray-800/80 rounded-xl p-3 shadow-2xl gap-4">
-                <div class="flex items-center gap-1.5 flex-1">
-                    <span class="text-xs text-red-500 font-bold">HP</span>
-                    <div class="flex-1 bg-gray-800 h-2.5 rounded-full overflow-hidden border border-gray-700/50">
-                        <div id="hpBar" class="bg-gradient-to-r from-red-500 to-orange-500 h-full w-full transition-all duration-150"></div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-1.5 flex-1">
-                    <span class="text-xs text-cyan-400 font-bold">FEVER</span>
-                    <div class="flex-1 bg-gray-800 h-2.5 rounded-full overflow-hidden border border-gray-700/50">
-                        <div id="feverBar" class="bg-cyan-400 h-full w-0 transition-all duration-150"></div>
-                    </div>
-                </div>
-                <div class="font-orbitron font-black text-green-400 text-sm whitespace-nowrap pl-2 border-l border-gray-800">
-                    SCORE: <span id="scoreVal">0</span>
-                </div>
+    <div id="ui-layer" class="flex flex-col justify-between p-4 z-10">
+        <div class="flex justify-between items-start">
+            <div class="text-white text-3xl font-bold text-outline" id="score-display">SCORE: 0</div>
+            <div class="text-white text-sm opacity-80 text-right text-outline hidden md:block">
+                [A/D] 또는 [방향키] 로 이동<br>화면 좌/우 터치로 이동
             </div>
         </div>
-
-        <!-- 3D Render WebGL Canvas Container -->
-        <div class="w-full h-full relative z-0">
-            <canvas id="gameCanvas"></canvas>
-        </div>
-
-        <!-- Main Menu Overlay -->
-        <div id="startOverlay" class="absolute inset-0 z-20 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300">
-            <div class="w-24 h-24 bg-gradient-to-tr from-red-600 to-pink-500 rounded-full flex items-center justify-center mb-6 animate-pulse shadow-lg shadow-red-500/50">
-                <svg class="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-            </div>
-            <h2 class="text-4xl font-black tracking-tight text-white mb-1">픽시 라이더 3D</h2>
-            <p class="text-sm text-red-500 font-bold font-orbitron tracking-widest mb-6">3D ENDLESS SPEEDER</p>
-
-            <div class="bg-gray-900/90 border border-gray-800 rounded-xl p-4 mb-8 text-left text-xs max-w-sm w-full space-y-2.5 text-gray-300 shadow-xl">
-                <div class="flex justify-between border-b border-gray-800 pb-2">
-                    <span class="font-bold text-yellow-400">좌 / 우 차선 이동:</span>
-                    <span>방향키 (← , →)</span>
-                </div>
-                <div class="flex justify-between border-b border-gray-800 pb-2">
-                    <span class="font-bold text-red-400">스키딩 감속:</span>
-                    <span>아래 방향키 (↓) / Space바</span>
-                </div>
-                <div class="flex justify-between border-b border-gray-800 pb-2">
-                    <span class="font-bold text-cyan-400">카메라 자유 회전:</span>
-                    <span>마우스 클릭 후 드래그</span>
-                </div>
-                <div class="flex justify-between pb-0.5">
-                    <span class="font-bold text-emerald-400">아이템:</span>
-                    <span>캔(피버 게이지 상승) & 코인(점수 획득)</span>
-                </div>
-            </div>
-
-            <button id="startBtn" class="px-10 py-4 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-extrabold rounded-full shadow-xl shadow-red-600/40 transition-transform active:scale-95 text-lg uppercase tracking-wider">
-                게임 시작
-            </button>
-        </div>
-
-        <!-- Game Over Overlay -->
-        <div id="gameOverOverlay" class="absolute inset-0 z-20 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center hidden">
-            <span class="text-6xl mb-3 animate-bounce">💥</span>
-            <h2 class="text-5xl font-black text-red-600 tracking-wider mb-2 font-orbitron">GAME OVER</h2>
-            <p class="text-gray-400 text-sm mb-8">차체가 완전히 대파되었습니다!</p>
-
-            <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 mb-8 w-72 space-y-4 shadow-2xl">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-400 text-sm">최종 점수</span>
-                    <span id="finalScore" class="text-3xl font-black text-green-400 font-orbitron">0</span>
-                </div>
-                <div class="flex justify-between items-center border-t border-gray-800 pt-3">
-                    <span class="text-gray-400 text-sm">최고 속도</span>
-                    <span id="finalSpeed" class="text-xl font-bold text-yellow-400 font-orbitron">0 km/h</span>
-                </div>
-            </div>
-
-            <button id="restartBtn" class="px-10 py-4 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 text-white font-extrabold rounded-full shadow-xl shadow-green-600/40 transition-transform active:scale-95 text-lg tracking-wider">
-                다시 시작하기
-            </button>
-        </div>
-
-        <!-- Mobile Touch Controls (Bottom) -->
-        <div class="absolute bottom-4 left-0 right-0 z-10 grid grid-cols-3 gap-4 px-4 max-w-md mx-auto w-full md:hidden pointer-events-none">
-            <button id="mobileLeft" class="pointer-events-auto btn-active bg-gray-950/80 hover:bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col items-center justify-center text-white transition-all shadow-xl">
-                <svg class="w-6 h-6 mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7" />
-                </svg>
-                <span class="text-[10px] font-bold text-gray-400">좌측</span>
-            </button>
-            <button id="mobileSkid" class="pointer-events-auto btn-active bg-red-950/80 hover:bg-red-900/90 border border-red-500/40 rounded-2xl p-4 flex flex-col items-center justify-center text-red-400 transition-all shadow-xl">
-                <svg class="w-6 h-6 mb-1 text-red-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
-                </svg>
-                <span class="text-[10px] font-black text-red-500 uppercase">Skid!!</span>
-            </button>
-            <button id="mobileRight" class="pointer-events-auto btn-active bg-gray-950/80 hover:bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col items-center justify-center text-white transition-all shadow-xl">
-                <svg class="w-6 h-6 mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" />
-                </svg>
-                <span class="text-[10px] font-bold text-gray-400">우측</span>
-            </button>
-        </div>
-
     </div>
 
-    <!-- Audio Effects using Web Audio API -->
+    <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-black/70 z-20 backdrop-blur-sm interactive">
+        <h1 class="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-green-400 mb-2 italic transform -skew-x-12 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">FIXIE RIDER 3D</h1>
+        <p class="text-white text-lg md:text-xl mb-8 font-medium">눈부신 광택의 픽시바이크로 도로를 질주하세요!</p>
+        <button id="start-btn" class="px-10 py-5 bg-gradient-to-r from-cyan-400 to-green-400 text-slate-950 font-black rounded-full text-2xl hover:brightness-110 transition-transform transform hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(52,211,153,0.4)]">
+            라이딩 시작
+        </button>
+    </div>
+
+    <div id="game-over-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-red-950/85 z-20 hidden backdrop-blur-md interactive">
+        <h1 class="text-6xl md:text-7xl font-black text-white mb-2 shadow-black drop-shadow-2xl italic tracking-wider">CRASHED!</h1>
+        <p class="text-white text-2xl mb-2">최종 점수: <span id="final-score" class="font-bold text-yellow-300">0</span></p>
+        <p class="text-red-200 text-md mb-8">안전 장비를 꼭 착용합시다!</p>
+        <button id="restart-btn" class="px-8 py-4 bg-yellow-400 text-slate-950 font-bold rounded-full text-xl hover:bg-yellow-300 transition-transform transform hover:scale-105 active:scale-95 shadow-lg">
+            다시 달리기
+        </button>
+    </div>
+
     <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playSound(type) {
-            if (!audioCtx) return;
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-
-            try {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                if (type === 'skid') {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(220, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.3);
-                    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.3);
-                } else if (type === 'crash') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.5);
-                    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.6);
-                } else if (type === 'coin') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime); // E5
-                    osc.frequency.setValueAtTime(987.77, audioCtx.currentTime + 0.08); // B5
-                    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.2);
-                } else if (type === 'fever') {
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(1500, audioCtx.currentTime + 0.6);
-                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.6);
-                } else if (type === 'move') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(250, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(500, audioCtx.currentTime + 0.12);
-                    gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.12);
-                }
-            } catch (e) {
-                console.log("Audio play error", e);
-            }
-        }
-    </script>
-
-    <!-- 3D Game Engine Script -->
-    <script>
-        const canvas = document.getElementById('gameCanvas');
         let scene, camera, renderer;
-        
-        // Game Constants
-        const ROAD_WIDTH = 18;
-        const ROAD_LENGTH = 1000;
-        const LANES = [6, 0, -6]; // Left, Center, Right lane X-coordinates (Inverted to fix reverse control bug!)
-
-        // Game State Variables
-        let gameRunning = false;
-        let score = 0;
-        let distance = 0;
-        let speed = 0.3; // Initial 3D scroll speed (Reduced from 0.5 to make it playable)
-        const baseSpeed = 0.3; // Reduced from 0.5
-        const maxSpeed = 1.0; // Reduced from 1.8
-        let hp = 100;
-        let fever = 0;
-        let isFeverMode = false;
-        let feverTimer = 0;
-
-        let keys = { Left: false, Right: false, Skidding: false };
-
-        // 3D Object Groupings
-        let playerGroup; // Bike + Rider
-        let roadPlanes = [];
+        let playerGroup;
+        let frontWheelMesh, backWheelMesh, crankGroup; // 움직임을 주기 위한 자전거 서브 그룹들
+        let obstacles = [];
         let roadLines = [];
-        let entities = []; // Obstacles and items
-        let particles = []; // Particle effects
-
-        // Camera dragging angles
-        let isMouseDown = false;
-        let previousMousePosition = { x: 0, y: 0 };
-        let cameraAngleYaw = 0;   // Left-Right rotation
-        let cameraAnglePitch = 0.3; // Up-down elevation (initial angle)
-
-        // UI references
-        const scoreVal = document.getElementById('scoreVal');
-        const highScoreVal = document.getElementById('highScoreVal');
-        const hpBar = document.getElementById('hpBar');
-        const feverBar = document.getElementById('feverBar');
-        const startOverlay = document.getElementById('startOverlay');
-        const gameOverOverlay = document.getElementById('gameOverOverlay');
-        const startBtn = document.getElementById('startBtn');
-        const restartBtn = document.getElementById('restartBtn');
-        const finalScore = document.getElementById('finalScore');
-        const finalSpeed = document.getElementById('finalSpeed');
-
-        let highScore = localStorage.getItem('fixie3d_highScore') || 0;
-        highScoreVal.innerText = highScore;
-
-        // Player configuration
-        const playerState = {
-            lane: 1, // Start in center lane
-            x: 0,
-            targetX: 0,
-            z: 15, // Fixed distance from camera anchor
-            wheelRotation: 0,
-            frameLean: 0,
-            shakeOffset: 0
-        };
-
-        // Initialize Three.js Scene
-        function init3D() {
-            // Scene Setup
+        let sceneryObjects = [];
+        
+        let isPlaying = false;
+        let score = 0;
+        let speed = 0.4; // 초기 속도
+        const MAX_SPEED = 0.9;
+        
+        // 3차선 설정
+        const LANE_WIDTH = 3.2;
+        let currentLane = 1; // 0: 좌, 1: 중앙, 2: 우
+        let targetX = 0;
+        
+        // HTML 요소
+        const scoreDisplay = document.getElementById('score-display');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        
+        function init() {
+            // 1. Scene 설정
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x060814);
-            scene.fog = new THREE.FogExp2(0x060814, 0.012); // Cyberpunk fog
-
-            // Camera Setup
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            scene.background = new THREE.Color(0xb0e0e6); // 조금 더 맑은 파스텔 하늘색
+            scene.fog = new THREE.FogExp2(0xb0e0e6, 0.02); // 한층 부드러운 안개 효과
             
-            // Renderer Setup
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            // 2. Camera 설정 (바이크 뒤쪽을 더 역동적으로 바라보도록 각도와 높이 수정)
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 150);
+            camera.position.set(0, 3.2, 5.5);
+            camera.lookAt(0, 0.8, -6);
+            
+            // 3. Renderer 설정 (그림자 기능 최고화질 최적화)
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-            // Lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
-            scene.add(ambientLight);
-
-            // Cyberpunk Neon Directional Light
-            const dirLight = new THREE.DirectionalLight(0xf43f5e, 1.2);
-            dirLight.position.set(20, 40, -50);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 1024;
-            dirLight.shadow.mapSize.height = 1024;
-            dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 200;
-            dirLight.shadow.camera.left = -20;
-            dirLight.shadow.camera.right = 20;
-            dirLight.shadow.camera.top = 20;
-            dirLight.shadow.camera.bottom = -20;
-            scene.add(dirLight);
-
-            // Backlight (Cyan for neon contrast)
-            const fillLight = new THREE.DirectionalLight(0x06b6d4, 0.8);
-            fillLight.position.set(-20, 20, 50);
-            scene.add(fillLight);
-
-            // Build Environment
-            createInfiniteRoad();
-            createPlayerBike();
-
-            // Setup Mouse Camera drag listeners
-            setupCameraInteractions();
-        }
-
-        // Camera movement control implementation (As per 3D criteria)
-        function setupCameraInteractions() {
-            window.addEventListener('mousedown', (e) => {
-                isMouseDown = true;
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-
-            window.addEventListener('mousemove', (e) => {
-                if (!isMouseDown) return;
-                const deltaX = e.clientX - previousMousePosition.x;
-                const deltaY = e.clientY - previousMousePosition.y;
-
-                cameraAngleYaw += deltaX * 0.005;
-                cameraAnglePitch = Math.max(0.05, Math.min(Math.PI / 2.2, cameraAnglePitch + deltaY * 0.005));
-
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-
-            window.addEventListener('mouseup', () => { isMouseDown = false; });
-            window.addEventListener('mouseleave', () => { isMouseDown = false; });
-
-            // Mobile touch fallback for camera rotation
-            window.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1) {
-                    isMouseDown = true;
-                    previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-            }, { passive: true });
-
-            window.addEventListener('touchmove', (e) => {
-                if (!isMouseDown || e.touches.length !== 1) return;
-                const deltaX = e.touches[0].clientX - previousMousePosition.x;
-                const deltaY = e.touches[0].clientY - previousMousePosition.y;
-
-                cameraAngleYaw += deltaX * 0.005;
-                cameraAnglePitch = Math.max(0.05, Math.min(Math.PI / 2.2, cameraAnglePitch + deltaY * 0.005));
-
-                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            }, { passive: true });
-
-            window.addEventListener('touchend', () => { isMouseDown = false; });
-        }
-
-        // Infinite 3D Road geometry
-        function createInfiniteRoad() {
-            // Road Surface
-            const roadGeo = new THREE.PlaneGeometry(ROAD_WIDTH, ROAD_LENGTH);
-            const roadMat = new THREE.MeshStandardMaterial({ 
-                color: 0x111622, 
-                roughness: 0.8,
-                metalness: 0.1
-            });
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 경계선
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; // 실감나는 시네마틱 톤매핑
+            renderer.toneMappingExposure = 1.1;
+            document.body.appendChild(renderer.domElement);
             
-            const road = new THREE.Mesh(roadGeo, roadMat);
+            // 4. Lighting 설정 (강한 실시간 그림자와 고급 하이라이트 광택을 위한 태양광 배치)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // 기본 부드러운 밝기
+            scene.add(ambientLight);
+            
+            // 입체감을 더해주는 하늘-땅 반사광
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+            scene.add(hemiLight);
+
+            // 주요 태양광 (그림자를 드리우고 크롬 표면 광택을 만드는 광원)
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            sunLight.position.set(12, 20, 15);
+            sunLight.castShadow = true;
+            
+            // 그림자 선명도 향상 세팅
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 60;
+            const shadowArea = 15;
+            sunLight.shadow.camera.left = -shadowArea;
+            sunLight.shadow.camera.right = shadowArea;
+            sunLight.shadow.camera.top = shadowArea;
+            sunLight.shadow.camera.bottom = -shadowArea;
+            sunLight.shadow.bias = -0.0005; // 섀도우 아티팩트 방지
+            scene.add(sunLight);
+
+            createEnvironment();
+            createPlayer();
+            
+            // 이벤트 리스너
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', handleKeyDown);
+            
+            // 모바일 터치 처리 (화면 좌/우 터치로 차선 변경)
+            document.addEventListener('touchstart', (e) => {
+                if(!isPlaying) return;
+                const touchX = e.touches[0].clientX;
+                const screenWidth = window.innerWidth;
+                if (touchX < screenWidth / 2) {
+                    moveLeft();
+                } else {
+                    moveRight();
+                }
+            }, { passive: false });
+
+            // 버튼 이벤트
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+
+            // 대기화면 루프 시작
+            animate();
+        }
+
+        function createEnvironment() {
+            // 도로 (아스팔트 질감을 위해 어두운 톤과 거칠기 세팅)
+            const roadGeometry = new THREE.PlaneGeometry(10, 200);
+            const roadMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1f2226, 
+                roughness: 0.85, 
+                metalness: 0.1 
+            });
+            const road = new THREE.Mesh(roadGeometry, roadMaterial);
             road.rotation.x = -Math.PI / 2;
-            road.position.set(0, 0, ROAD_LENGTH / 2 - 50);
+            road.position.z = -90;
             road.receiveShadow = true;
             scene.add(road);
-            roadPlanes.push(road);
 
-            // Sidewalk edges
-            const sidewalkGeo = new THREE.BoxGeometry(2, 0.4, ROAD_LENGTH);
-            const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x272d3d, roughness: 0.6 });
+            // 잔디 (도로 양옆)
+            const grassGeometry = new THREE.PlaneGeometry(120, 200);
+            const grassMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x2e6f40, 
+                roughness: 0.95 
+            });
+            const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+            grass.rotation.x = -Math.PI / 2;
+            grass.position.y = -0.02;
+            grass.position.z = -90;
+            grass.receiveShadow = true;
+            scene.add(grass);
+
+            // 도로 경계선 (흰색 고체 선)
+            const borderGeo = new THREE.PlaneGeometry(0.15, 200);
+            const borderMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
             
-            const leftSidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMat);
-            leftSidewalk.position.set(-ROAD_WIDTH/2 - 1, 0.2, ROAD_LENGTH/2 - 50);
-            leftSidewalk.receiveShadow = true;
-            scene.add(leftSidewalk);
+            const leftBorder = new THREE.Mesh(borderGeo, borderMat);
+            leftBorder.rotation.x = -Math.PI / 2;
+            leftBorder.position.set(-5, 0.01, -90);
+            scene.add(leftBorder);
 
-            const rightSidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMat);
-            rightSidewalk.position.set(ROAD_WIDTH/2 + 1, 0.2, ROAD_LENGTH/2 - 50);
-            rightSidewalk.receiveShadow = true;
-            scene.add(rightSidewalk);
+            const rightBorder = new THREE.Mesh(borderGeo, borderMat);
+            rightBorder.rotation.x = -Math.PI / 2;
+            rightBorder.position.set(5, 0.01, -90);
+            scene.add(rightBorder);
 
-            // Lane separation markers (3D dashes)
-            const markerGeo = new THREE.BoxGeometry(0.3, 0.02, 6);
-            const markerMat = new THREE.MeshBasicMaterial({ color: 0xfbcfe8 }); // neon pink dashed lines
-
-            for (let z = 0; z < ROAD_LENGTH; z += 18) {
-                // Lane 1 divider
-                const line1 = new THREE.Mesh(markerGeo, markerMat);
-                line1.position.set(-3, 0.01, z);
+            // 차선 (점선)
+            const lineGeometry = new THREE.PlaneGeometry(0.12, 4);
+            const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffea00 }); // 노란 중앙 점선
+            
+            for (let i = 0; i < 25; i++) {
+                // 좌측 차선 분리선
+                const line1 = new THREE.Mesh(lineGeometry, lineMaterial);
+                line1.rotation.x = -Math.PI / 2;
+                line1.position.set(-1.6, 0.02, -i * 8);
                 scene.add(line1);
                 roadLines.push(line1);
 
-                // Lane 2 divider
-                const line2 = new THREE.Mesh(markerGeo, markerMat);
-                line2.position.set(3, 0.01, z);
+                // 우측 차선 분리선
+                const line2 = new THREE.Mesh(lineGeometry, lineMaterial);
+                line2.rotation.x = -Math.PI / 2;
+                line2.position.set(1.6, 0.02, -i * 8);
                 scene.add(line2);
                 roadLines.push(line2);
             }
+
+            // 가로수 및 풍경 장식 생성
+            for(let i = 0; i < 40; i++) {
+                createSceneryObject(true, -i * 4); // 왼쪽
+                createSceneryObject(false, -i * 4); // 오른쪽
+            }
         }
 
-        // Beautiful Procedural 3D Bicycle & Rider Mesh Builder
-        let rearWheelMesh, frontWheelFork, frameMesh;
-        function createPlayerBike() {
+        function createSceneryObject(isLeft, zPos) {
+            const isTree = Math.random() > 0.4;
+            let mesh = new THREE.Group();
+            
+            if(isTree) {
+                // 한층 더 예쁘고 입체적인 로우폴리 나무 생성
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.15, 0.22, 1.6, 6), 
+                    new THREE.MeshStandardMaterial({color: 0x5c4033, roughness: 0.9})
+                );
+                trunk.position.y = 0.8;
+                trunk.castShadow = true;
+                trunk.receiveShadow = true;
+                mesh.add(trunk);
+
+                const leafColors = [0x1e5a2c, 0x2e7d32, 0x4caf50];
+                const leaves = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.9, 2.2, 5), 
+                    new THREE.MeshStandardMaterial({color: leafColors[Math.floor(Math.random()*3)], roughness: 0.8})
+                );
+                leaves.position.y = 2.2;
+                leaves.castShadow = true;
+                leaves.receiveShadow = true;
+                mesh.add(leaves);
+            } else {
+                // 빌딩/상자 (원경의 가판대나 벽돌 느낌의 장애물)
+                const height = Math.random() * 6 + 4;
+                const blockMat = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.5, 0.4),
+                    roughness: 0.7,
+                    metalness: 0.1
+                });
+                const block = new THREE.Mesh(new THREE.BoxGeometry(2, height, 2), blockMat);
+                block.position.y = height / 2;
+                block.castShadow = true;
+                block.receiveShadow = true;
+                mesh.add(block);
+            }
+            
+            mesh.position.x = isLeft ? -(Math.random() * 12 + 6) : (Math.random() * 12 + 6);
+            mesh.position.z = zPos;
+            scene.add(mesh);
+            sceneryObjects.push(mesh);
+        }
+
+        function createPlayer() {
             playerGroup = new THREE.Group();
 
-            // Materials
-            const steelMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, metalness: 0.9, roughness: 0.1 }); // Pink Neon Metal Frame
-            const tireMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 });
-            const neonMat = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
-
-            // 1. Wheels (Cylinders)
-            const wheelGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.18, 16);
-            wheelGeo.rotateZ(Math.PI / 2);
-
-            rearWheelMesh = new THREE.Mesh(wheelGeo, tireMat);
-            rearWheelMesh.position.set(0, 0.9, -1.5);
-            rearWheelMesh.castShadow = true;
-            playerGroup.add(rearWheelMesh);
-
-            // Wheel hub visualizer
-            const spokeGeo = new THREE.BoxGeometry(0.08, 1.7, 0.08);
-            const spoke = new THREE.Mesh(spokeGeo, steelMat);
-            rearWheelMesh.add(spoke);
-
-            const frontWheelMesh = new THREE.Mesh(wheelGeo, tireMat);
-            frontWheelMesh.position.set(0, 0.9, 1.5);
-            frontWheelMesh.castShadow = true;
+            // 1. 고정밀 반사/광택 메탈릭 프레임 소재 정의
+            const chromeMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x00f0ff, // 빛나는 네온 시안 블루
+                metalness: 0.95, 
+                roughness: 0.08, 
+                envMapIntensity: 1.0 
+            });
             
-            const frontSpoke = new THREE.Mesh(spokeGeo, steelMat);
-            frontWheelMesh.add(frontSpoke);
-
-            // 2. Front Fork & Handlebars
-            frontWheelFork = new THREE.Group();
-            frontWheelFork.position.set(0, 0, 1.5); // Pivot at front wheel
+            const tireMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a1a, 
+                roughness: 0.9, 
+                metalness: 0.0 
+            });
             
-            // Fork tubes
-            const forkTubeGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.6);
-            const leftFork = new THREE.Mesh(forkTubeGeo, steelMat);
-            leftFork.position.set(-0.12, 0.8, 0);
-            leftFork.rotation.x = -0.15;
-            frontWheelFork.add(leftFork);
-
-            const rightFork = leftFork.clone();
-            rightFork.position.x = 0.12;
-            frontWheelFork.add(rightFork);
-
-            // Handlebar bar
-            const barGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.3);
-            barGeo.rotateZ(Math.PI / 2);
-            const handlebar = new THREE.Mesh(barGeo, steelMat);
-            handlebar.position.set(0, 1.6, -0.1);
-            frontWheelFork.add(handlebar);
-
-            frontWheelFork.add(frontWheelMesh); // Nest wheel inside turning fork
-            playerGroup.add(frontWheelFork);
-
-            // 3. Frame Tubes
-            frameMesh = new THREE.Group();
+            const rimMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xe0e0e0, 
+                metalness: 0.9, 
+                roughness: 0.1 
+            });
             
-            // Bottom tube
-            const tubeGeo1 = new THREE.CylinderGeometry(0.06, 0.06, 1.8);
-            tubeGeo1.rotateX(Math.PI / 4);
-            const bottomTube = new THREE.Mesh(tubeGeo1, steelMat);
-            bottomTube.position.set(0, 1.1, -0.25);
-            frameMesh.add(bottomTube);
+            const blackMetalMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x111111, 
+                metalness: 0.8, 
+                roughness: 0.3 
+            });
+            
+            const leatherMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x222222, 
+                roughness: 0.7 
+            });
 
-            // Seat tube
-            const tubeGeo2 = new THREE.CylinderGeometry(0.06, 0.06, 1.2);
-            const seatTube = new THREE.Mesh(tubeGeo2, steelMat);
-            seatTube.position.set(0, 1.4, -0.6);
-            seatTube.rotation.x = 0.2;
-            frameMesh.add(seatTube);
+            const riderSkinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.6 });
+            const riderClothesMat = new THREE.MeshStandardMaterial({ color: 0x2e3b4e, roughness: 0.5 });
 
-            // Top tube
-            const tubeGeo3 = new THREE.CylinderGeometry(0.05, 0.05, 1.6);
-            tubeGeo3.rotateZ(Math.PI / 2);
-            const topTube = new THREE.Mesh(tubeGeo3, steelMat);
-            topTube.position.set(0, 1.8, -0.1);
-            topTube.rotation.x = 1.45;
-            frameMesh.add(topTube);
+            // ==========================================
+            // [A] 뒷바퀴 모듈 (Upright YZ Plane정렬!)
+            // ==========================================
+            backWheelMesh = new THREE.Group();
+            
+            // 타이어
+            const tireBack = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 12, 36), tireMaterial);
+            tireBack.castShadow = true;
+            backWheelMesh.add(tireBack);
+            
+            // 림 (금속 테두리)
+            const rimBack = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 36), rimMaterial);
+            rimBack.castShadow = true;
+            backWheelMesh.add(rimBack);
+            
+            // 바퀴 허브 센터 축
+            const hubBack = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8), blackMetalMaterial);
+            hubBack.rotation.x = Math.PI / 2;
+            backWheelMesh.add(hubBack);
 
-            // Saddle (Seat)
-            const saddleGeo = new THREE.BoxGeometry(0.25, 0.1, 0.5);
-            const saddleMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
-            const saddle = new THREE.Mesh(saddleGeo, saddleMat);
-            saddle.position.set(0, 1.95, -0.7);
-            frameMesh.add(saddle);
+            // 바퀴 살 (스포크) 4개 교차 배치
+            for(let k = 0; k < 6; k++) {
+                const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.9, 4), rimMaterial);
+                spoke.rotation.z = (Math.PI / 6) * k;
+                backWheelMesh.add(spoke);
+            }
 
-            playerGroup.add(frameMesh);
+            // 회전 전, 기본 YZ축 정렬을 위해 바퀴를 세움 (원래 XY평면에 생성된 토러스를 옆으로 90도 회전하여 똑바로 전방을 보게 함)
+            backWheelMesh.rotation.y = Math.PI / 2;
+            backWheelMesh.position.set(0, 0.55, 0.7);
+            playerGroup.add(backWheelMesh);
 
-            // 4. Low-Poly Rider Character representation
-            const rider = new THREE.Group();
-            rider.position.set(0, 1.8, -0.3);
 
-            // Torso (jersey)
-            const torsoGeo = new THREE.BoxGeometry(0.7, 0.9, 0.5);
-            const jerseyMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
-            const torso = new THREE.Mesh(torsoGeo, jerseyMat);
-            torso.position.set(0, 0.35, -0.1);
-            torso.rotation.x = 0.5; // Lean forward aerodynamic pose
-            rider.add(torso);
+            // ==========================================
+            // [B] 앞바퀴 모듈 (동일하게 세움)
+            // ==========================================
+            frontWheelMesh = new THREE.Group();
+            
+            const tireFront = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 12, 36), tireMaterial);
+            tireFront.castShadow = true;
+            frontWheelMesh.add(tireFront);
+            
+            const rimFront = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 36), rimMaterial);
+            rimFront.castShadow = true;
+            frontWheelMesh.add(rimFront);
+            
+            const hubFront = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8), blackMetalMaterial);
+            hubFront.rotation.x = Math.PI / 2;
+            frontWheelMesh.add(hubFront);
 
-            // Helmet & Head
-            const headGeo = new THREE.SphereGeometry(0.26, 12, 12);
-            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(headGeo, skinMat);
-            head.position.set(0, 0.85, 0.15);
-            rider.add(head);
+            for(let k = 0; k < 6; k++) {
+                const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.9, 4), rimMaterial);
+                spoke.rotation.z = (Math.PI / 6) * k;
+                frontWheelMesh.add(spoke);
+            }
 
-            const helmetGeo = new THREE.SphereGeometry(0.29, 12, 12, 0, Math.PI * 2, 0, Math.PI / 1.7);
-            const helmetMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-            const helmet = new THREE.Mesh(helmetGeo, helmetMat);
-            helmet.position.set(0, 0.9, 0.15);
-            helmet.rotation.x = 0.3;
-            rider.add(helmet);
+            frontWheelMesh.rotation.y = Math.PI / 2;
+            frontWheelMesh.position.set(0, 0.55, -0.7);
+            playerGroup.add(frontWheelMesh);
 
-            playerGroup.add(rider);
 
-            // Position and add the whole bike package
-            playerGroup.position.set(0, 0, playerState.z);
+            // ==========================================
+            // [C] 픽시 자전거 크롬 프레임 (다이아몬드 구조화)
+            // ==========================================
+            const frameGroup = new THREE.Group();
+
+            // 1. 시트 튜브 (안장으로 올라가는 주 파이프)
+            const seatTube = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7), chromeMaterial);
+            seatTube.rotation.x = 0.25; // 살짝 뒤로 기울어짐
+            seatTube.position.set(0, 0.85, 0.2);
+            frameGroup.add(seatTube);
+
+            // 2. 탑 튜브 (수평 프레임)
+            const topTube = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9), chromeMaterial);
+            topTube.rotation.x = Math.PI / 2;
+            topTube.position.set(0, 1.15, -0.22);
+            frameGroup.add(topTube);
+
+            // 3. 다운 튜브 (사선 하단 프레임)
+            const downTube = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 1.05), chromeMaterial);
+            downTube.rotation.x = -Math.PI / 3.6;
+            downTube.position.set(0, 0.85, -0.2);
+            frameGroup.add(downTube);
+
+            // 4. 시트 스테이 (안장 아래에서 뒷바퀴 축으로 연결되는 얇은 한쌍의 뒤 포크)
+            const seatStayL = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.72), chromeMaterial);
+            seatStayL.rotation.x = -Math.PI / 5;
+            seatStayL.position.set(-0.06, 0.82, 0.45);
+            frameGroup.add(seatStayL);
+
+            const seatStayR = seatStayL.clone();
+            seatStayR.position.x = 0.06;
+            frameGroup.add(seatStayR);
+
+            // 5. 체인 스테이 (비비축에서 뒷바퀴 축으로 연결되는 하단 지지대)
+            const chainStayL = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.52), chromeMaterial);
+            chainStayL.rotation.x = Math.PI / 2;
+            chainStayL.position.set(-0.06, 0.55, 0.45);
+            frameGroup.add(chainStayL);
+
+            const chainStayR = chainStayL.clone();
+            chainStayR.position.x = 0.06;
+            frameGroup.add(chainStayR);
+
+            // 6. 프론트 포크 (앞바퀴 제어 및 지지 포크)
+            const forkL = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.015, 0.7), chromeMaterial);
+            forkL.rotation.x = 0.25; // 포크 각도
+            forkL.position.set(-0.05, 0.82, -0.62);
+            frameGroup.add(forkL);
+
+            const forkR = forkL.clone();
+            forkR.position.x = 0.05;
+            frameGroup.add(forkR);
+
+            // 7. 헤드 튜브 (탑튜브와 다운튜브가 모이는 조향관)
+            const headTube = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.25), chromeMaterial);
+            headTube.rotation.x = 0.25;
+            headTube.position.set(0, 1.15, -0.65);
+            frameGroup.add(headTube);
+
+            // ==========================================
+            // [D] 컴포넌트 장치 (안장, 핸들바, 페달)
+            // ==========================================
+            // 안장 포스트 & 피지크 에어로 안장 (Saddle)
+            const seatPost = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.25), rimMaterial);
+            seatPost.rotation.x = 0.25;
+            seatPost.position.set(0, 1.25, 0.24);
+            frameGroup.add(seatPost);
+
+            const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.35), leatherMaterial);
+            saddle.position.set(0, 1.35, 0.23);
+            saddle.rotation.x = 0.05; // 앞쪽을 아주 살짝 숙임
+            frameGroup.add(saddle);
+
+            // 핸들 스템 & 스포티 드롭바 (Handlebar)
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12), rimMaterial);
+            stem.rotation.x = Math.PI / 2.5;
+            stem.position.set(0, 1.29, -0.68);
+            frameGroup.add(stem);
+
+            const handlebarCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.35), blackMetalMaterial);
+            handlebarCenter.rotation.z = Math.PI / 2;
+            handlebarCenter.position.set(0, 1.32, -0.72);
+            frameGroup.add(handlebarCenter);
+
+            // 핸들바 끝 드롭 형태 (곡선 단순 묘사)
+            const dropBarL = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.18), blackMetalMaterial);
+            dropBarL.rotation.x = Math.PI / 3;
+            dropBarL.position.set(-0.165, 1.24, -0.78);
+            frameGroup.add(dropBarL);
+
+            const dropBarR = dropBarL.clone();
+            dropBarR.position.x = 0.165;
+            frameGroup.add(dropBarR);
+
+            // 크랭크셋 & 페달 (Crankset) - 애니메이션에서 뱅글뱅글 돌아감
+            crankGroup = new THREE.Group();
+            crankGroup.position.set(0, 0.55, 0.17); // 바이크 하부 중심 (Bottom Bracket)
+            
+            const chainring = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16), blackMetalMaterial);
+            chainring.rotation.z = Math.PI / 2;
+            crankGroup.add(chainring);
+
+            // 좌측 크랭크 암 & 페달
+            const crankArmL = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.02), rimMaterial);
+            crankArmL.position.set(-0.06, 0.09, 0);
+            const pedalL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.12), blackMetalMaterial);
+            pedalL.position.set(-0.08, 0.19, 0);
+            crankGroup.add(crankArmL);
+            crankGroup.add(pedalL);
+
+            // 우측 크랭크 암 & 페달 (대칭 180도 반대 각도)
+            const crankArmR = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.02), rimMaterial);
+            crankArmR.position.set(0.06, -0.09, 0);
+            const pedalR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.12), blackMetalMaterial);
+            pedalR.position.set(0.08, -0.19, 0);
+            crankGroup.add(crankArmR);
+            crankGroup.add(pedalR);
+
+            frameGroup.add(crankGroup);
+
+
+            // ==========================================
+            // [E] 스타일리시한 라이더 (Rider) - 자전거와 밀착된 자세
+            // ==========================================
+            const riderGroup = new THREE.Group();
+
+            // 라이더 힙/몸뚱이 (숙이고 달리는 에어로 자세)
+            const hips = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.45), riderClothesMat);
+            hips.position.set(0, 1.45, 0.1);
+            hips.rotation.x = -0.5; // 강하게 앞으로 숙임
+            riderGroup.add(hips);
+
+            const spine = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.45, 0.32), riderClothesMat);
+            spine.position.set(0, 1.62, -0.15);
+            spine.rotation.x = -0.8; // 더 공격적으로 숙이기
+            riderGroup.add(spine);
+
+            // 팔 (드롭바 조준 연결)
+            const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.5), riderClothesMat);
+            armL.rotation.x = 0.5;
+            armL.position.set(-0.16, 1.55, -0.42);
+            riderGroup.add(armL);
+
+            const armR = armL.clone();
+            armR.position.x = 0.16;
+            riderGroup.add(armR);
+
+            // 헬멧을 쓴 머리
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), riderSkinMat);
+            head.position.set(0, 1.82, -0.38);
+            riderGroup.add(head);
+
+            const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12, 0, Math.PI * 2, 0, Math.PI / 1.7), chromeMaterial); // 크롬 헬멧!
+            helmet.position.set(0, 1.85, -0.35);
+            helmet.rotation.x = -0.3;
+            riderGroup.add(helmet);
+
+            // 다리 (크랭크 회전축을 향하도록 단순 묘사)
+            const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.65), riderClothesMat);
+            legL.rotation.x = 0.4;
+            legL.position.set(-0.16, 1.15, 0.05);
+            riderGroup.add(legL);
+
+            const legR = legL.clone();
+            legR.position.x = 0.16;
+            legR.rotation.x = 0.1;
+            riderGroup.add(legR);
+
+            frameGroup.add(riderGroup);
+
+            // 모든 프레임 파트 그림자 셋팅
+            frameGroup.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            playerGroup.add(frameGroup);
+
+            // 플레이어 지상고 포지셔닝 조정 (휠 반경 0.55 + 마진)
+            playerGroup.position.set(0, 0, 0);
+            
+            // 충돌 감지용 투명 박스 설정
+            const hitBoxGeo = new THREE.BoxGeometry(0.8, 1.9, 1.9);
+            const hitBoxMat = new THREE.MeshBasicMaterial({visible: false});
+            const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
+            hitBox.position.y = 1.0;
+            hitBox.name = "hitbox";
+            playerGroup.add(hitBox);
+
             scene.add(playerGroup);
         }
 
-        // 3D Spawner Engine
-        const ENTITY_TEMPLATES = {
-            CAR: { type: 'car', color: 0x2563eb },
-            CONE: { type: 'cone', color: 0xf97316 },
-            HOLE: { type: 'hole', color: 0x05070e },
-            DRINK: { type: 'drink', color: 0x22d3ee },
-            COIN: { type: 'coin', color: 0xfacc15 }
-        };
+        function spawnObstacle() {
+            if(!isPlaying) return;
 
-        let spawnTimer = 0;
-        let spawnInterval = 90; // Frames between spawning obstacles (Increased from 65 to reduce difficulty)
-
-        function spawn3DEntity() {
-            const laneIndex = Math.floor(Math.random() * 3);
-            const r = Math.random();
-            let template;
-
-            if (r < 0.45) {
-                template = ENTITY_TEMPLATES.CAR;
-            } else if (r < 0.70) {
-                template = ENTITY_TEMPLATES.CONE;
-            } else if (r < 0.80) {
-                template = ENTITY_TEMPLATES.HOLE;
-            } else if (r < 0.90) {
-                template = ENTITY_TEMPLATES.COIN;
-            } else {
-                template = ENTITY_TEMPLATES.DRINK;
-            }
-
-            const x = LANES[laneIndex];
-            const z = 220; // Spawn far away in 3D depth
-
-            const entityGroup = new THREE.Group();
-            entityGroup.position.set(x, 0, z);
-
-            let mainMesh;
-
-            if (template.type === 'car') {
-                const carColors = [0xef4444, 0x3b82f6, 0x10b981, 0x8b5cf6, 0xf59e0b];
-                const randColor = carColors[Math.floor(Math.random() * carColors.length)];
-                const carMat = new THREE.MeshStandardMaterial({ color: randColor, metalness: 0.4, roughness: 0.3 });
-                const windowMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.1 });
-
-                // Car base body
-                const carBaseGeo = new THREE.BoxGeometry(3.6, 1.8, 6.5);
-                mainMesh = new THREE.Mesh(carBaseGeo, carMat);
-                mainMesh.position.y = 1.0;
-                mainMesh.castShadow = true;
-                entityGroup.add(mainMesh);
-
-                // Car Cabin upper
-                const cabinGeo = new THREE.BoxGeometry(3.4, 1.1, 3.2);
-                const cabin = new THREE.Mesh(cabinGeo, carMat);
-                cabin.position.set(0, 1.9, -0.4);
-                mainMesh.add(cabin);
-
-                // Windshield
-                const windshieldGeo = new THREE.BoxGeometry(3.1, 0.8, 0.1);
-                const windshield = new THREE.Mesh(windshieldGeo, windowMat);
-                windshield.position.set(0, 1.9, 1.25);
-                windshield.rotation.x = -0.4;
-                mainMesh.add(windshield);
-
-            } else if (template.type === 'cone') {
-                const coneMat = new THREE.MeshStandardMaterial({ color: template.color, roughness: 0.7 });
-                const baseGeo = new THREE.BoxGeometry(1.6, 0.15, 1.6);
-                mainMesh = new THREE.Mesh(baseGeo, coneMat);
-                mainMesh.position.y = 0.08;
-                mainMesh.castShadow = true;
-
-                const tipGeo = new THREE.ConeGeometry(0.6, 1.9, 8);
-                const tip = new THREE.Mesh(tipGeo, coneMat);
-                tip.position.y = 0.95;
-                mainMesh.add(tip);
-
-                entityGroup.add(mainMesh);
-
-            } else if (template.type === 'hole') {
-                const holeMat = new THREE.MeshBasicMaterial({ color: template.color });
-                const holeGeo = new THREE.RingGeometry(0.1, 1.8, 16);
-                holeGeo.rotateX(-Math.PI / 2);
-                mainMesh = new THREE.Mesh(holeGeo, holeMat);
-                mainMesh.position.y = 0.015;
-                entityGroup.add(mainMesh);
-
-            } else if (template.type === 'drink') {
-                const drinkMat = new THREE.MeshStandardMaterial({ color: template.color, metalness: 0.8, roughness: 0.2 });
-                const canGeo = new THREE.CylinderGeometry(0.45, 0.45, 1.4, 12);
-                mainMesh = new THREE.Mesh(canGeo, drinkMat);
-                mainMesh.position.y = 0.7;
-                mainMesh.castShadow = true;
-                entityGroup.add(mainMesh);
-
-                // Extra pulsing glow indicator
-                const glowGeo = new THREE.SphereGeometry(0.7, 8, 8);
-                const glowMat = new THREE.MeshBasicMaterial({ color: template.color, transparent: true, opacity: 0.15 });
-                const glow = new THREE.Mesh(glowGeo, glowMat);
-                glow.position.y = 0.7;
-                entityGroup.add(glow);
-
-            } else if (template.type === 'coin') {
-                const coinMat = new THREE.MeshStandardMaterial({ color: template.color, metalness: 0.9, roughness: 0.1 });
-                const coinGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.15, 16);
-                coinGeo.rotateX(Math.PI / 2);
-                mainMesh = new THREE.Mesh(coinGeo, coinMat);
-                mainMesh.position.y = 1.0;
-                mainMesh.castShadow = true;
-                entityGroup.add(mainMesh);
-            }
-
-            scene.add(entityGroup);
-
-            entities.push({
-                type: template.type,
-                mesh: entityGroup,
-                lane: laneIndex,
-                y: 0,
-                z: z,
-                speedOffset: template.type === 'car' ? -0.15 : 0 // Cars move slightly with/against road
-            });
-        }
-
-        // Particle System for skidding smoke and crash sparks
-        function spawn3DParticle(x, y, z, color, speedY, size = 0.25) {
-            const pGeo = new THREE.BoxGeometry(size, size, size);
-            const pMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 1 });
-            const pMesh = new THREE.Mesh(pGeo, pMat);
+            // 장애물 (0: 스포츠카, 1: 대형트럭, 2: 라바콘)
+            const type = Math.floor(Math.random() * 3);
+            let mesh;
             
-            pMesh.position.set(x + (Math.random()-0.5)*0.5, y, z);
-            scene.add(pMesh);
-
-            particles.push({
-                mesh: pMesh,
-                vx: (Math.random() - 0.5) * 0.2,
-                vy: speedY + Math.random() * 0.1,
-                vz: -speed * 0.5, // matches road speed flow
-                alpha: 1,
-                decay: Math.random() * 0.05 + 0.03
+            // 도로 아스팔트 그림자에 어울리는 멋진 반사광 재질
+            const carMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color().setHSL(Math.random(), 0.9, 0.4),
+                metalness: 0.8,
+                roughness: 0.1
             });
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9 });
+            const coneMat = new THREE.MeshStandardMaterial({ color: 0xff3300, roughness: 0.5, emmissive: 0x220000 });
+
+            if (type === 0) { // 스포츠카
+                mesh = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.65, 3.4), carMaterial);
+                body.position.y = 0.4;
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 1.8), windowMat);
+                cabin.position.set(0, 0.85, -0.2);
+                mesh.add(body);
+                mesh.add(cabin);
+                mesh.userData = { width: 1.7, height: 1.1, depth: 3.4 };
+
+            } else if (type === 1) { // 덤프트럭
+                mesh = new THREE.Group();
+                const cab = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.6, 1.4), new THREE.MeshStandardMaterial({color: 0xdddddd, metalness: 0.7, roughness: 0.2}));
+                cab.position.set(0, 1.0, 1.6);
+                const cargo = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.8, 3.8), new THREE.MeshStandardMaterial({color: 0x222222, metalness: 0.4, roughness: 0.5}));
+                cargo.position.set(0, 1.1, -1.0);
+                mesh.add(cab);
+                mesh.add(cargo);
+                mesh.userData = { width: 2.2, height: 2.1, depth: 5.2 };
+
+            } else { // 고휘도 공사 라바콘 (Cone)
+                mesh = new THREE.Group();
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.6), new THREE.MeshStandardMaterial({color: 0x111111, roughness: 0.9}));
+                base.position.y = 0.04;
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 16), coneMat);
+                cone.position.y = 0.49;
+                mesh.add(base);
+                mesh.add(cone);
+                mesh.userData = { width: 0.8, height: 1.0, depth: 0.8 };
+            }
+
+            // 모든 파트가 완벽한 그림자를 드리우도록 처리
+            mesh.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            // 차선 랜덤 선택
+            const lane = Math.floor(Math.random() * 3);
+            const targetLaneX = (lane - 1) * LANE_WIDTH;
+            
+            mesh.position.set(targetLaneX, 0, -80); // 가시거리 밖에서 시작
+            
+            scene.add(mesh);
+            obstacles.push(mesh);
+
+            // 난이도 상승 곡선 (시간 및 스코어 연동형)
+            let spawnDelay = Math.max(700, 1800 - (score * 12));
+            setTimeout(spawnObstacle, spawnDelay);
         }
 
-        function create3DExplosion(x, y, z, color) {
-            for (let i = 0; i < 20; i++) {
-                spawn3DParticle(x, y, z, color, Math.random() * 0.3 + 0.1, 0.35);
+        function moveLeft() {
+            if (currentLane > 0) {
+                currentLane--;
+                targetX = (currentLane - 1) * LANE_WIDTH;
             }
         }
 
-        // Sound & collision actions trigger Game Over
-        function triggerGameOver() {
-            gameRunning = false;
-            playSound('crash');
-            create3DExplosion(playerState.x, 1, playerState.z, 0xff3b30);
-
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('fixie3d_highScore', highScore);
-                highScoreVal.innerText = highScore;
+        function moveRight() {
+            if (currentLane < 2) {
+                currentLane++;
+                targetX = (currentLane - 1) * LANE_WIDTH;
             }
-
-            finalScore.innerText = score;
-            const displaySpeed = Math.floor(speed * 90);
-            finalSpeed.innerText = `${displaySpeed} km/h`;
-
-            gameOverOverlay.classList.remove('hidden');
         }
 
-        // Game state initializer
+        function handleKeyDown(event) {
+            if (!isPlaying) return;
+            if (event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A') {
+                moveLeft();
+            } else if (event.key === 'ArrowRight' || event.key === 'd' || event.key === 'D') {
+                moveRight();
+            }
+        }
+
+        function checkCollisions() {
+            const pX = playerGroup.position.x;
+            const pZ = playerGroup.position.z;
+            const pW = 0.7; // 픽시 가로폭 최적 피격판정
+            const pD = 1.7; // 자전거 길이
+
+            for (let i = 0; i < obstacles.length; i++) {
+                const obs = obstacles[i];
+                const oX = obs.position.x;
+                const oZ = obs.position.z;
+                const oW = obs.userData.width;
+                const oD = obs.userData.depth;
+
+                // 정밀 AABB 컬리전 판정
+                if (Math.abs(pX - oX) < (pW + oW) / 2 - 0.15 && 
+                    Math.abs(pZ - oZ) < (pD + oD) / 2 - 0.15) {
+                    gameOver();
+                    return;
+                }
+            }
+        }
+
         function startGame() {
-            // Reset numerical stats
+            obstacles.forEach(obs => scene.remove(obs));
+            obstacles = [];
             score = 0;
-            speed = baseSpeed;
-            distance = 0;
-            hp = 100;
-            fever = 0;
-            isFeverMode = false;
-
-            // Clear legacy entities
-            entities.forEach(ent => scene.remove(ent.mesh));
-            entities = [];
-
-            // Clear legacy particles
-            particles.forEach(p => scene.remove(p.mesh));
-            particles = [];
-
-            // Reset player states
-            playerState.lane = 1;
-            playerState.x = 0;
-            playerState.targetX = 0;
-            playerGroup.position.set(0, 0, playerState.z);
-
-            // Reset UI
-            scoreVal.innerText = score;
-            hpBar.style.width = '100%';
-            feverBar.style.width = '0%';
-            feverBar.classList.remove('animate-pulse');
-
-            // Set running state
-            gameRunning = true;
-
-            // Animate overlay dismissal
-            startOverlay.classList.add('opacity-0');
-            setTimeout(() => {
-                startOverlay.classList.add('hidden');
-            }, 300);
-            gameOverOverlay.classList.add('hidden');
+            speed = 0.45;
+            currentLane = 1;
+            targetX = 0;
+            playerGroup.position.set(0, 0, 0);
+            playerGroup.rotation.set(0, 0, 0);
+            scoreDisplay.innerText = `SCORE: ${score}`;
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            isPlaying = true;
+            
+            setTimeout(spawnObstacle, 1000);
         }
 
-        // Keyboard Actions
-        window.addEventListener('keydown', (e) => {
-            if (!gameRunning) return;
+        function gameOver() {
+            isPlaying = false;
+            finalScoreDisplay.innerText = score;
+            gameOverScreen.classList.remove('hidden');
+            
+            // 실감나는 파손/넘어짐 물리 시뮬레이션 대용 액션 연출
+            playerGroup.rotation.z = -Math.PI / 2.2;
+            playerGroup.rotation.y = 0.4;
+            playerGroup.position.y = 0.25;
+            playerGroup.position.x += (currentLane === 0 ? 0.3 : -0.3);
+        }
 
-            if (e.key === 'ArrowLeft') {
-                if (playerState.lane > 0) {
-                    playerState.lane--;
-                    playerState.targetX = LANES[playerState.lane];
-                    playSound('move');
-                }
-            } else if (e.key === 'ArrowRight') {
-                if (playerState.lane < 2) {
-                    playerState.lane++;
-                    playerState.targetX = LANES[playerState.lane];
-                    playSound('move');
-                }
-            } else if (e.key === 'ArrowDown' || e.key === ' ') {
-                e.preventDefault();
-                keys.Skidding = true;
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowDown' || e.key === ' ') {
-                keys.Skidding = false;
-            }
-        });
-
-        // Mobile Button Attachments
-        const mobileLeft = document.getElementById('mobileLeft');
-        const mobileRight = document.getElementById('mobileRight');
-        const mobileSkid = document.getElementById('mobileSkid');
-
-        mobileLeft.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (gameRunning && playerState.lane > 0) {
-                playerState.lane--;
-                playerState.targetX = LANES[playerState.lane];
-                playSound('move');
-            }
-        }, { passive: false });
-
-        mobileRight.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (gameRunning && playerState.lane < 2) {
-                playerState.lane++;
-                playerState.targetX = LANES[playerState.lane];
-                playSound('move');
-            }
-        }, { passive: false });
-
-        mobileSkid.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (gameRunning) keys.Skidding = true;
-        }, { passive: false });
-
-        mobileSkid.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            keys.Skidding = false;
-        }, { passive: false });
-
-        // Bind start overlay buttons
-        startBtn.addEventListener('click', startGame);
-        restartBtn.addEventListener('click', startGame);
-
-        // Resize callback
-        function handleWindowResize() {
+        function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-        window.addEventListener('resize', handleWindowResize);
 
-        // Core Physics loop
-        function updateGame() {
-            if (!gameRunning) {
-                // Slower scenic camera rotation when on start/end screens
-                cameraAngleYaw += 0.003;
-                return;
-            }
-
-            // 1. Move player bike smoothly on lateral lane lines
-            const deltaX = playerState.targetX - playerState.x;
-            playerState.x += deltaX * 0.15;
-            playerGroup.position.x = playerState.x;
-
-            // Frame lean effect on turn (Inverted sign to match inverted LANES coordinate)
-            playerState.frameLean = deltaX * 0.08;
-            playerGroup.rotation.z = playerState.frameLean;
-            frontWheelFork.rotation.y = -deltaX * 0.05; // Slightly steer front wheel fork into lanes (Inverted)
-
-            // Spin gears and wheels based on distance speed
-            playerState.wheelRotation += speed * 0.5;
-            rearWheelMesh.rotation.x = playerState.wheelRotation;
-
-            // 2. Dynamic Speed / Skidding Brakes
-            if (keys.Skidding) {
-                if (speed > 0.15) {
-                    speed -= 0.015;
-                    if (speed < 0.15) speed = 0.15;
-                }
-                // Skid particle effects from rear wheel
-                spawn3DParticle(playerState.x, 0.1, playerState.z - 1.5, 0xcccccc, 0.25, 0.18);
-                if (Math.random() < 0.3) {
-                    spawn3DParticle(playerState.x, 0.1, playerState.z - 1.5, 0xffa500, 0.3, 0.08); // Fire sparks
-                }
-                // Squeal sound
-                if (Math.random() < 0.15) {
-                    playSound('skid');
-                }
-                // Light chassis wobble representation
-                playerState.shakeOffset = (Math.random() - 0.5) * 0.08;
-                playerGroup.position.x += playerState.shakeOffset;
-            } else {
-                if (speed < maxSpeed && !isFeverMode) {
-                    speed += 0.0002; // Gradual acceleration (Reduced from 0.0006)
-                }
-            }
-
-            // 3. Track Fever State
-            if (isFeverMode) {
-                feverTimer--;
-                fever = (feverTimer / 180) * 100;
-                feverBar.style.width = `${fever}%`;
-
-                // Fever Mode particles
-                spawn3DParticle(playerState.x, 0.3, playerState.z + (Math.random() - 0.5) * 3, 0x22d3ee, 0.1, 0.2);
-
-                if (feverTimer <= 0) {
-                    isFeverMode = false;
-                    feverBar.classList.remove('animate-pulse');
-                    speed = baseSpeed + (score * 0.002);
-                }
-            }
-
-            // 4. Moving the Infinite Road & Line separators
-            distance += speed;
-            roadLines.forEach(line => {
-                line.position.z -= speed * 15; // move road components backwards to simulate forward progress
-                if (line.position.z < -20) {
-                    line.position.z += ROAD_LENGTH; // wrap around loop
-                }
-            });
-
-            // 5. Spawn management
-            spawnTimer++;
-            if (spawnTimer >= spawnInterval) {
-                spawn3DEntity();
-                spawnTimer = 0;
-                // Scale difficulty (More relaxed scale)
-                spawnInterval = Math.max(40, 90 - Math.floor(score * 0.1));
-            }
-
-            // 6. Handle active 3D entities
-            for (let i = entities.length - 1; i >= 0; i--) {
-                const ent = entities[i];
-                
-                // Move entity back relative to speed
-                ent.z -= (speed * 15 + ent.speedOffset);
-                ent.mesh.position.z = ent.z;
-
-                // Rotations
-                if (ent.type === 'coin') {
-                    ent.mesh.rotation.y += 0.05;
-                }
-
-                // Check distance for despawn
-                if (ent.z < -20) {
-                    scene.remove(ent.mesh);
-                    entities.splice(i, 1);
-                    if (ent.type === 'car' || ent.type === 'cone' || ent.type === 'hole') {
-                        score += 10;
-                        scoreVal.innerText = score;
-                    }
-                    continue;
-                }
-
-                // Collision Detection (2D projections inside X and Z plane)
-                const distanceX = Math.abs(ent.mesh.position.x - playerState.x);
-                const distanceZ = Math.abs(ent.mesh.position.z - playerState.z);
-
-                if (distanceX < 2.2 && distanceZ < 3.2) {
-                    // Collect items
-                    if (ent.type === 'drink') {
-                        playSound('coin');
-                        fever = Math.min(100, fever + 35);
-                        feverBar.style.width = `${fever}%`;
-                        
-                        scene.remove(ent.mesh);
-                        entities.splice(i, 1);
-
-                        if (fever >= 100 && !isFeverMode) {
-                            isFeverMode = true;
-                            feverTimer = 180;
-                            playSound('fever');
-                            speed = maxSpeed * 1.3;
-                            feverBar.classList.add('animate-pulse');
-                        }
-                    } else if (ent.type === 'coin') {
-                        playSound('coin');
-                        score += 150;
-                        scoreVal.innerText = score;
-                        scene.remove(ent.mesh);
-                        entities.splice(i, 1);
-                    } else {
-                        // Impact Obstacles
-                        if (isFeverMode) {
-                            // Deflect obstacle!
-                            create3DExplosion(ent.mesh.position.x, 1, ent.mesh.position.z, 0x00f3ff);
-                            playSound('crash');
-                            scene.remove(ent.mesh);
-                            entities.splice(i, 1);
-                            score += 50;
-                            scoreVal.innerText = score;
-                        } else {
-                            // Hit damage
-                            hp -= 25;
-                            hpBar.style.width = `${hp}%`;
-                            create3DExplosion(ent.mesh.position.x, 1, ent.mesh.position.z, 0xff3b30);
-                            playSound('crash');
-                            scene.remove(ent.mesh);
-                            entities.splice(i, 1);
-
-                            // Instant recoil speed penalty
-                            speed = Math.max(baseSpeed, speed - 0.4);
-
-                            if (hp <= 0) {
-                                triggerGameOver();
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 7. Handle particles decay
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.mesh.position.x += p.vx;
-                p.mesh.position.y += p.vy;
-                p.mesh.position.z += p.vz;
-                
-                p.alpha -= p.decay;
-                p.mesh.material.opacity = p.alpha;
-                p.mesh.scale.setScalar(p.alpha);
-
-                if (p.alpha <= 0) {
-                    scene.remove(p.mesh);
-                    particles.splice(i, 1);
-                }
-            }
-
-            // Natural passive score gain
-            if (Math.floor(distance) % 15 === 0) {
-                score += 1;
-                scoreVal.innerText = score;
-            }
-        }
-
-        // Camera positioning logic
-        function updateCamera() {
-            // Spring return to normal back-chase camera if user released mouse
-            if (!isMouseDown) {
-                cameraAngleYaw += (0 - cameraAngleYaw) * 0.08;
-                cameraAnglePitch += (0.28 - cameraAnglePitch) * 0.08;
-            }
-
-            // Spherical coordinate offset around the player bicycle
-            const radius = 14; // Camera distance
-            const offsetZ = -Math.cos(cameraAngleYaw) * Math.cos(cameraAnglePitch) * radius;
-            const offsetX = -Math.sin(cameraAngleYaw) * Math.cos(cameraAnglePitch) * radius;
-            const offsetY = Math.sin(cameraAnglePitch) * radius;
-
-            // Apply camera coordinate positioning relative to bike
-            camera.position.set(
-                playerState.x + offsetX,
-                1.4 + offsetY,
-                playerState.z + offsetZ
-            );
-
-            // Keep lookAt focus centered right in front of the rider
-            camera.lookAt(playerState.x, 1.2, playerState.z + 15);
-        }
-
-        // Animation Loop
+        // 애니메이션 렌더링 프레임 루프
         function animate() {
             requestAnimationFrame(animate);
 
-            // Update game physics logic
-            updateGame();
+            if (isPlaying) {
+                // 1. 도로 점선 및 배경 무한스크롤 질주 효과
+                roadLines.forEach(line => {
+                    line.position.z += speed;
+                    if (line.position.z > 6) {
+                        line.position.z -= 100;
+                    }
+                });
 
-            // Handle Camera repositioning
-            updateCamera();
+                sceneryObjects.forEach(obj => {
+                    obj.position.z += speed;
+                    if(obj.position.z > 12) {
+                        obj.position.z = -150;
+                        obj.position.x = obj.position.x < 0 ? -(Math.random() * 12 + 6) : (Math.random() * 12 + 6);
+                    }
+                });
 
-            // Render Frame
+                // 2. 자전거 바퀴 실제 회전 애니메이션 (세워진 휠의 회전축은 X축!)
+                frontWheelMesh.rotation.x -= speed / 0.55; 
+                backWheelMesh.rotation.x -= speed / 0.55; 
+
+                // 3. 페달 및 크랭크셋 완벽한 연동 회전 (픽시의 상징: 고정기어 페달링)
+                crankGroup.rotation.x -= speed / 0.55;
+
+                // 4. 부드러운 핸들 조작 느낌 (러프하게 움직이는 Lerp 보간)
+                playerGroup.position.x += (targetX - playerGroup.position.x) * 0.16;
+                
+                // 차선을 바꿀때 자전거가 스포티하게 기우는 기울기(Lean angle)
+                const rollLean = (playerGroup.position.x - targetX) * -0.16; 
+                playerGroup.rotation.z += (rollLean - playerGroup.rotation.z) * 0.2;
+                playerGroup.rotation.y = (playerGroup.position.x - targetX) * -0.06; // 진행방향으로 머리 살짝 틈
+                
+                // 5. 장애물 흐름 처리 및 무사통과시 점수 득점
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    const obs = obstacles[i];
+                    obs.position.z += speed;
+                    
+                    if (obs.position.z > 6) {
+                        scene.remove(obs);
+                        obstacles.splice(i, 1);
+                        score += 10;
+                        scoreDisplay.innerText = `SCORE: ${score}`;
+                        
+                        // 자연스럽게 최고속도로 가속
+                        if (speed < MAX_SPEED) {
+                            speed += 0.006;
+                        }
+                    }
+                }
+
+                // 6. 충돌 테스트 검사
+                checkCollisions();
+            } else {
+                // 게임 비실행/대기중일 때는 가볍게 정지상태의 자전거가 공중에 둥둥 뜨는 심플 카메라 회전 처리
+                if(playerGroup) {
+                    playerGroup.position.x = 0;
+                    playerGroup.rotation.y = Math.sin(Date.now() * 0.001) * 0.15;
+                    crankGroup.rotation.x -= 0.01;
+                    frontWheelMesh.rotation.x -= 0.01;
+                    backWheelMesh.rotation.x -= 0.01;
+                }
+            }
+
             renderer.render(scene, camera);
         }
 
-        // Run Engine on load (As per criteria: animation loop starts after window.onload event)
-        window.onload = function() {
-            init3D();
-            animate();
-        };
+        // 빌드 시작
+        init();
     </script>
 </body>
 </html>
